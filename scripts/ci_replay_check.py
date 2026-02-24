@@ -23,7 +23,7 @@ def main():
 
     for sc in sorted(TEMPLATE_DIR.glob("*.yaml")):
         # run command
-        out = run(["duro", "run", str(sc), "--llm-provider", "mock", "--no-banner"])
+        out = run(["duro", "run", str(sc), "--llm-provider", "mock"])
         # robust parse of run id from stdout variants
         run_id = None
         for line in out.splitlines():
