@@ -116,24 +116,83 @@ def validate_step_safety(steps: list[dict[str, Any]]) -> tuple[bool, list[str]]:
     return (len(errors) == 0, errors)
 
 
-def _confidence(classification: str, returncode: int, steps_count: int, retries: int = 1) -> tuple[float, dict]:
+def _historical_consistency_ratio(scenario_id: str, classification: str, max_runs: int = 30) -> float:
+    """Return ratio of recent runs for scenario_id with same classification.
+
+    If no history exists, returns 0.5 neutral prior.
+    """
+    matches = 0
+    total = 0
+    for p in sorted(RUNS.glob('*/result.json'), reverse=True):
+        try:
+            d = json.loads(p.read_text())
+        except Exception:
+            continue
+        if d.get('scenario_id') != scenario_id:
+            continue
+        total += 1
+        if d.get('classification') == classification:
+            matches += 1
+        if total >= max_runs:
+            break
+    if total == 0:
+        return 0.5
+    return matches / total
+
+
+def _confidence(
+    classification: str,
+    returncode: int,
+    steps_count: int,
+    retries: int = 1,
+    safety_ok: bool = True,
+    invariant_pass_ratio: float = 1.0,
+    consistency_ratio: float = 0.5,
+) -> tuple[float, dict]:
     base = {
-        "confirmed": 0.85,
-        "not_reproducible": 0.70,
-        "inconclusive": 0.40,
-        "infra_failed": 0.20,
+        'confirmed': 0.82,
+        'not_reproducible': 0.68,
+        'inconclusive': 0.42,
+        'infra_failed': 0.20,
     }.get(classification, 0.2)
 
-    step_factor = min(0.1, steps_count * 0.01)
+    step_factor = min(0.08, steps_count * 0.008)
     retry_penalty = 0.05 * max(0, retries - 1)
     rc_penalty = 0.05 if returncode not in (0, 1) else 0.0
+    safety_penalty = 0.12 if not safety_ok else 0.0
 
-    score = max(0.0, min(1.0, base + step_factor - retry_penalty - rc_penalty))
+    inv_ratio = max(0.0, min(1.0, invariant_pass_ratio))
+    invariant_factor = (inv_ratio - 0.5) * 0.20  # -0.10 .. +0.10
+
+    consistency = max(0.0, min(1.0, consistency_ratio))
+    consistency_factor = (consistency - 0.5) * 0.16  # -0.08 .. +0.08
+
+    score = max(
+        0.0,
+        min(
+            1.0,
+            base
+            + step_factor
+            + invariant_factor
+            + consistency_factor
+            - retry_penalty
+            - rc_penalty
+            - safety_penalty,
+        ),
+    )
     breakdown = {
-        "base": base,
-        "step_factor": step_factor,
-        "retry_penalty": retry_penalty,
-        "returncode_penalty": rc_penalty,
+        'base': base,
+        'step_factor': step_factor,
+        'invariant_factor': invariant_factor,
+        'consistency_factor': consistency_factor,
+        'retry_penalty': retry_penalty,
+        'returncode_penalty': rc_penalty,
+        'safety_penalty': safety_penalty,
+        'inputs': {
+            'invariant_pass_ratio': inv_ratio,
+            'consistency_ratio': consistency,
+            'safety_ok': safety_ok,
+        },
     }
     return score, breakdown
 
@@ -406,8 +465,6 @@ def run_scenario(path: str, llm_provider: str = "mock", llm_model: str = "", fal
     trace_summary = extract_trace_summary(stdout, stderr)
     (run_dir / "trace.summary.log").write_text("\n".join(trace_summary) + ("\n" if trace_summary else ""))
 
-    confidence, breakdown = _confidence(classification, code, len(step_list), llm_meta.get("attempts", 1))
-
     invariants_eval = evaluate_invariants(
         getattr(scenario, "invariants", []) or [],
         {
@@ -415,6 +472,20 @@ def run_scenario(path: str, llm_provider: str = "mock", llm_model: str = "", fal
             "steps_count": len(step_list),
             "safety": {"ok": safe_ok, "errors": safety_errors},
         },
+    )
+    inv_defined = invariants_eval.get("defined", 0)
+    inv_passed = invariants_eval.get("passed", 0)
+    inv_ratio = (inv_passed / inv_defined) if inv_defined > 0 else 1.0
+
+    consistency_ratio = _historical_consistency_ratio(scenario.id, classification)
+    confidence, breakdown = _confidence(
+        classification,
+        code,
+        len(step_list),
+        llm_meta.get("attempts", 1),
+        safety_ok=safe_ok,
+        invariant_pass_ratio=inv_ratio,
+        consistency_ratio=consistency_ratio,
     )
 
     result = {
@@ -432,6 +503,7 @@ def run_scenario(path: str, llm_provider: str = "mock", llm_model: str = "", fal
         "confidence": confidence,
         "confidence_breakdown": breakdown,
         "invariants": invariants_eval,
+        "consistency_ratio": consistency_ratio,
         "trace_summary": trace_summary,
         "artifacts": {
             "harness": str(test_file),
@@ -476,6 +548,7 @@ def export_report(run_id: str):
 
 - Classification: **{data['classification']}**
 - Confidence: **{data.get('confidence', 0):.2f}**
+- Consistency ratio: **{data.get('consistency_ratio', 0.5):.2f}**
 - Reason: {data['reason']} ({data.get('reason_code','')})
 - Return code: `{data['returncode']}`
 - Steps: `{data.get('steps_count', 0)}`

@@ -146,7 +146,7 @@ In `scenarios/templates/`:
 ## Production hardening already included
 
 - Safety policy gate for generated steps
-- Confidence scoring + confidence breakdown
+- Confidence scoring v2 (classification + safety + invariant pass ratio + historical consistency)
 - Reason-code classification
 - Provider fallback + telemetry
 - Integrity manifest + verification
