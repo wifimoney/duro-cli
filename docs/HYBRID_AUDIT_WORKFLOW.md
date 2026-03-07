@@ -42,6 +42,7 @@ duro discover . --out .duro/findings.discovery.json
 duro synthesize --findings .duro/findings.discovery.json --out-dir scenarios/generated
 duro audit --from .duro/findings.discovery.json --out-prefix .duro/fused-audit --llm-provider mock --max-runs 20
 duro audit --from .duro/findings.discovery.json --fail-on confirmed:high,confirmed:critical --json
+duro audit --from .duro/findings.discovery.json --output-contract
 ```
 
 ## Notes
