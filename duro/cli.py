@@ -8,6 +8,7 @@ from .llm import get_provider
 
 from . import __version__
 from .core import (
+    diff_runs,
     doctor_checks,
     ensure_layout,
     export_report,
@@ -111,6 +112,27 @@ def show(run_id: str):
 def report_export(run_id: str):
     export_report(run_id)
     ok(f"Report exported: reports/{run_id}")
+
+
+@app.command("diff")
+def diff_cmd(run_a: str, run_b: str, json_out: bool = typer.Option(False, "--json", help="JSON output")):
+    try:
+        out = diff_runs(run_a, run_b)
+    except FileNotFoundError as e:
+        err(str(e))
+        raise typer.Exit(code=1)
+
+    if json_out:
+        print(json.dumps(out, indent=2))
+        return
+
+    if not out["changed"]:
+        ok(f"No material changes between {run_a} and {run_b}")
+        return
+
+    section(f"DURO DIFF {run_a} -> {run_b}")
+    for k, v in out["changes"].items():
+        print(f"- {k}: {v['from']} -> {v['to']}")
 
 
 @app.command()

@@ -80,6 +80,7 @@ Artifacts under `runs/<run_id>/` and `reports/<run_id>/`:
 - `result.json`
 - `forge.stdout.log`
 - `forge.stderr.log`
+- `trace.summary.log`
 - generated harness (`.t.sol`)
 - `safety.json`
 - `summary.md` / `summary.json`
@@ -97,6 +98,7 @@ duro show <run_id>
 duro report export <run_id>
 duro verify <run_id>
 duro verify --all
+duro diff <run_a> <run_b>
 duro guard <run_id>
 duro ls
 

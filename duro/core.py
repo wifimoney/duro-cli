@@ -251,6 +251,45 @@ def classify(returncode: int, stdout: str, stderr: str):
     return "infra_failed", "toolchain/runtime error"
 
 
+def extract_trace_summary(stdout: str, stderr: str, max_lines: int = 40) -> list[str]:
+    """Best-effort extraction of relevant forge trace/assert/revert lines."""
+    lines = (stdout + "\n" + stderr).splitlines()
+    needles = ("trace", "revert", "assert", "fail", "error", "panic")
+    picked = [ln.strip() for ln in lines if any(n in ln.lower() for n in needles)]
+    if not picked:
+        return []
+    return picked[:max_lines]
+
+
+def diff_runs(run_a: str, run_b: str) -> dict[str, Any]:
+    pa = RUNS / run_a / "result.json"
+    pb = RUNS / run_b / "result.json"
+    if not pa.exists():
+        raise FileNotFoundError(f"run not found: {run_a}")
+    if not pb.exists():
+        raise FileNotFoundError(f"run not found: {run_b}")
+
+    a = json.loads(pa.read_text())
+    b = json.loads(pb.read_text())
+
+    keys = ["classification", "reason_code", "returncode", "steps_count", "confidence", "scenario_id"]
+    changes = {}
+    for k in keys:
+        if a.get(k) != b.get(k):
+            changes[k] = {"from": a.get(k), "to": b.get(k)}
+
+    # safety diff
+    if a.get("safety") != b.get("safety"):
+        changes["safety"] = {"from": a.get("safety"), "to": b.get("safety")}
+
+    return {
+        "run_a": run_a,
+        "run_b": run_b,
+        "changed": bool(changes),
+        "changes": changes,
+    }
+
+
 def run_scenario(path: str, llm_provider: str = "mock", llm_model: str = "", fallback_provider: str = "") -> str:
     raw = yaml.safe_load(Path(path).read_text())
     scenario = Scenario.model_validate(raw)
@@ -312,6 +351,8 @@ def run_scenario(path: str, llm_provider: str = "mock", llm_model: str = "", fal
 
     (run_dir / "forge.stdout.log").write_text(stdout)
     (run_dir / "forge.stderr.log").write_text(stderr)
+    trace_summary = extract_trace_summary(stdout, stderr)
+    (run_dir / "trace.summary.log").write_text("\n".join(trace_summary) + ("\n" if trace_summary else ""))
 
     confidence, breakdown = _confidence(classification, code, len(step_list), llm_meta.get("attempts", 1))
 
@@ -329,10 +370,12 @@ def run_scenario(path: str, llm_provider: str = "mock", llm_model: str = "", fal
         "safety": {"ok": safe_ok, "errors": safety_errors},
         "confidence": confidence,
         "confidence_breakdown": breakdown,
+        "trace_summary": trace_summary,
         "artifacts": {
             "harness": str(test_file),
             "stdout": str(run_dir / "forge.stdout.log"),
             "stderr": str(run_dir / "forge.stderr.log"),
+            "trace_summary": str(run_dir / "trace.summary.log"),
             "llm_raw": str(run_dir / "llm.raw.txt") if (run_dir / "llm.raw.txt").exists() else None,
             "safety": str(run_dir / "safety.json"),
         },
@@ -341,7 +384,13 @@ def run_scenario(path: str, llm_provider: str = "mock", llm_model: str = "", fal
 
     manifest = run_dir / "manifest.sha256"
     lines = []
-    files = [run_dir / "result.json", run_dir / "forge.stdout.log", run_dir / "forge.stderr.log", run_dir / "safety.json"]
+    files = [
+        run_dir / "result.json",
+        run_dir / "forge.stdout.log",
+        run_dir / "forge.stderr.log",
+        run_dir / "trace.summary.log",
+        run_dir / "safety.json",
+    ]
     if test_file.exists():
         files.append(test_file)
     if (run_dir / "llm.raw.txt").exists():
@@ -374,10 +423,16 @@ def export_report(run_id: str):
 - OK: `{data.get('safety',{}).get('ok')}`
 - Errors: `{data.get('safety',{}).get('errors')}`
 
+## Trace Summary (excerpt)
+```
+{chr(10).join((data.get('trace_summary') or [])[:12])}
+```
+
 ## Artifacts
 - Harness: `{data['artifacts']['harness']}`
 - Stdout: `{data['artifacts']['stdout']}`
 - Stderr: `{data['artifacts']['stderr']}`
+- Trace summary: `{data['artifacts'].get('trace_summary')}`
 - Safety: `{data['artifacts'].get('safety')}`
 """
     (report_dir / "summary.md").write_text(md)
