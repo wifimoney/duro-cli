@@ -195,6 +195,8 @@ Authorized testing only. Don’t use DURO on systems/contracts without explicit 
 
 - Hybrid workflow: `docs/HYBRID_AUDIT_WORKFLOW.md`
 - Discovery schema: `docs/findings.discovery.schema.json`
+- Audit output contract v1 schema: `docs/contracts/duro.audit.v1.schema.json`
+- Audit output contract v1 example: `docs/contracts/duro.audit.v1.example.json`
 - Rulepack references: `duro/references/`
 - Roadmap: `docs/DURO_RELEASE_PLAN.md`
 - Issue backlog: `docs/GITHUB_ISSUES_P0_P1.md`

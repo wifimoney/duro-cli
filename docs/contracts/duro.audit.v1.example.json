@@ -1,0 +1,39 @@
+{
+  "status": "ok",
+  "result": {
+    "fused_json": ".duro/fused-audit.json",
+    "fused_md": ".duro/fused-audit.md",
+    "scenarios_generated": 12,
+    "runs_executed": 12
+  },
+  "summary": {
+    "by_repro_status": {
+      "confirmed": 2,
+      "not_reproducible": 5,
+      "inconclusive": 4,
+      "infra_failed": 1
+    },
+    "severity_by_repro_status": {
+      "confirmed": { "high": 1, "critical": 1 },
+      "not_reproducible": { "high": 2, "medium": 3 }
+    },
+    "fail_rules": ["confirmed:high", "confirmed:critical"],
+    "failed_rules": ["confirmed:critical"],
+    "gate_passed": false
+  },
+  "findings": [
+    {
+      "finding_id": "cand_001",
+      "title": "Review critical state transitions in Vault",
+      "hypothesis": "A privileged path may allow unsafe state mutation.",
+      "contract_file": "src/Vault.sol",
+      "discovery_confidence": "medium",
+      "impact": "high",
+      "repro_status": "confirmed",
+      "duro_confidence": 0.88,
+      "consistency_ratio": 0.75,
+      "run_id": "ab12cd34"
+    }
+  ],
+  "contract_version": "duro.audit.v1"
+}

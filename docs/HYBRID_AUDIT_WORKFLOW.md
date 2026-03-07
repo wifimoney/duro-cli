@@ -48,3 +48,5 @@ duro audit --from .duro/findings.discovery.json --output-contract
 ## Notes
 - Discovery output is intentionally hypothesis-first.
 - Generated scenarios are scaffolds and require analyst edits before final repro runs.
+- `duro audit --output-contract` emits `duro.audit.v1` contract payload.
+- Contract schema and example are in `docs/contracts/duro.audit.v1.schema.json` and `.example.json`.

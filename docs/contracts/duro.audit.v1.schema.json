@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://duro.dev/schemas/duro.audit.v1.schema.json",
+  "title": "DURO Audit Output Contract v1",
+  "type": "object",
+  "required": ["status", "result", "summary", "findings", "contract_version"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "failed", "unknown"]
+    },
+    "result": {
+      "type": "object",
+      "required": ["fused_json", "fused_md", "scenarios_generated", "runs_executed"],
+      "properties": {
+        "fused_json": { "type": "string" },
+        "fused_md": { "type": "string" },
+        "scenarios_generated": { "type": "integer", "minimum": 0 },
+        "runs_executed": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": ["by_repro_status", "severity_by_repro_status", "fail_rules", "failed_rules", "gate_passed"],
+      "properties": {
+        "by_repro_status": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "severity_by_repro_status": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "integer" }
+          }
+        },
+        "fail_rules": { "type": "array", "items": { "type": "string" } },
+        "failed_rules": { "type": "array", "items": { "type": "string" } },
+        "gate_passed": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["finding_id", "title", "hypothesis", "contract_file", "discovery_confidence", "impact", "repro_status"],
+        "properties": {
+          "finding_id": { "type": ["string", "null"] },
+          "title": { "type": ["string", "null"] },
+          "hypothesis": { "type": ["string", "null"] },
+          "contract_file": { "type": ["string", "null"] },
+          "discovery_confidence": { "type": ["string", "null"] },
+          "impact": { "type": ["string", "null"] },
+          "repro_status": { "type": ["string", "null"] },
+          "duro_confidence": { "type": ["number", "null"] },
+          "consistency_ratio": { "type": ["number", "null"] },
+          "run_id": { "type": ["string", "null"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "contract_version": {
+      "type": "string",
+      "const": "duro.audit.v1"
+    }
+  },
+  "additionalProperties": true
+}
