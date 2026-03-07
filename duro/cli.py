@@ -18,6 +18,7 @@ from .core import (
 )
 from .ui import err, ok, section, show_banner, warn
 from .discovery import synthesize_scenarios, write_discovery_bundle
+from .orchestration import check_rulepack_version, run_parallel_vector_scan, write_audit_json, write_audit_report
 
 app = typer.Typer(help="DURO CLI — check if a smart-contract issue is actually exploitable")
 scenario_app = typer.Typer(help="Validate and inspect scenario files")
@@ -166,6 +167,25 @@ def report_export(run_id: str):
     ok(f"Report exported: reports/{run_id}")
 
 
+@report_app.command("check-format")
+def report_check_format(path: str):
+    p = Path(path)
+    if not p.exists():
+        err(f"Missing report: {path}")
+        raise typer.Exit(code=2)
+    txt = p.read_text()
+    required = [
+        '# DURO Audit Report',
+        '## Findings (above confidence threshold)',
+        '## Below Confidence Threshold',
+    ]
+    missing = [r for r in required if r not in txt]
+    if missing:
+        err(f"format check failed: {', '.join(missing)}")
+        raise typer.Exit(code=1)
+    ok('Report format check passed')
+
+
 @app.command("diff")
 def diff_cmd(run_a: str, run_b: str, json_out: bool = typer.Option(False, "--json", help="JSON output")):
     try:
@@ -233,6 +253,10 @@ def discover_cmd(
     root: str = typer.Argument('.', help='Repo root to scan for Solidity files'),
     out: str = typer.Option('.duro/findings.discovery.json', '--out', help='Discovery output JSON path'),
 ):
+    v = check_rulepack_version()
+    if v.get('warning'):
+        warn(v['warning'])
+
     payload = write_discovery_bundle(root=root, out_path=out)
     ok(f"Discovery bundle written: {out}")
     print(f"files_scanned={len(payload.get('files_scanned', []))} findings={len(payload.get('findings', []))}")
@@ -245,6 +269,29 @@ def synthesize_cmd(
 ):
     written = synthesize_scenarios(findings_path=findings, out_dir=out_dir)
     ok(f"Generated {len(written)} scenario(s) into {out_dir}")
+
+
+@app.command("audit-run")
+def audit_run_cmd(
+    root: str = typer.Argument('.', help='Repo root'),
+    mode: str = typer.Option('fast', '--mode', help='fast|deep|deep+adversarial'),
+    confidence_threshold: float = typer.Option(0.60, '--confidence-threshold', help='Threshold for report split'),
+    out_prefix: str = typer.Option('.duro/audit', '--out-prefix', help='Output prefix for report/json'),
+):
+    if mode not in ('fast', 'deep', 'deep+adversarial'):
+        err('--mode must be fast|deep|deep+adversarial')
+        raise typer.Exit(code=2)
+
+    v = check_rulepack_version()
+    if v.get('warning'):
+        warn(v['warning'])
+
+    payload = run_parallel_vector_scan(root=root, mode=mode)
+    report_path = write_audit_report(payload, f"{out_prefix}.md", confidence_threshold=confidence_threshold)
+    json_path = write_audit_json(payload, f"{out_prefix}.json")
+
+    ok(f"Audit run complete: {report_path}")
+    ok(f"Machine output: {json_path}")
 
 
 @app.command()
