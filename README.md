@@ -94,6 +94,8 @@ Artifacts under `runs/<run_id>/` and `reports/<run_id>/`:
 ```bash
 duro init
 duro doctor [--skip-rpc] [--json]
+duro discover . --out .duro/findings.discovery.json
+duro synthesize --findings .duro/findings.discovery.json --out-dir scenarios/generated
 duro run <scenario.yaml> [--llm-provider ... --llm-model ... --llm-fallback ...]
 duro rerun-check <scenario.yaml> --n 3 [--llm-provider ...]
 duro rerun-check <scenario.yaml> --n 5 --min-majority-ratio 0.80
@@ -187,6 +189,8 @@ Authorized testing only. Don’t use DURO on systems/contracts without explicit 
 
 ## Project docs
 
+- Hybrid workflow: `docs/HYBRID_AUDIT_WORKFLOW.md`
+- Discovery schema: `docs/findings.discovery.schema.json`
 - Roadmap: `docs/DURO_RELEASE_PLAN.md`
 - Issue backlog: `docs/GITHUB_ISSUES_P0_P1.md`
 - Board: `docs/PROJECT_BOARD.md`

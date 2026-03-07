@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://duro.dev/schemas/findings.discovery.schema.json",
+  "title": "DURO Discovery Findings",
+  "type": "object",
+  "required": ["version", "root", "files_scanned", "findings"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "root": { "type": "string" },
+    "files_scanned": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "finding_id",
+          "title",
+          "hypothesis",
+          "contract_file",
+          "function_hint",
+          "impact",
+          "preconditions",
+          "confidence",
+          "source"
+        ],
+        "properties": {
+          "finding_id": { "type": "string" },
+          "title": { "type": "string" },
+          "hypothesis": { "type": "string" },
+          "contract_file": { "type": "string" },
+          "function_hint": { "type": "string" },
+          "impact": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
+          "preconditions": { "type": "array", "items": { "type": "string" } },
+          "confidence": { "type": "string", "enum": ["low", "medium", "high"] },
+          "source": { "type": "string" }
+        }
+      }
+    }
+  }
+}

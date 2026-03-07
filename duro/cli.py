@@ -17,6 +17,7 @@ from .core import (
     verify_run,
 )
 from .ui import err, ok, section, show_banner, warn
+from .discovery import synthesize_scenarios, write_discovery_bundle
 
 app = typer.Typer(help="DURO CLI — check if a smart-contract issue is actually exploitable")
 scenario_app = typer.Typer(help="Validate and inspect scenario files")
@@ -225,6 +226,25 @@ def ls():
     for r in runs[:20]:
         data = json.loads(r.read_text())
         print(f"{data['run_id']}  {data['classification']}  scenario={data['scenario_id']}")
+
+
+@app.command("discover")
+def discover_cmd(
+    root: str = typer.Argument('.', help='Repo root to scan for Solidity files'),
+    out: str = typer.Option('.duro/findings.discovery.json', '--out', help='Discovery output JSON path'),
+):
+    payload = write_discovery_bundle(root=root, out_path=out)
+    ok(f"Discovery bundle written: {out}")
+    print(f"files_scanned={len(payload.get('files_scanned', []))} findings={len(payload.get('findings', []))}")
+
+
+@app.command("synthesize")
+def synthesize_cmd(
+    findings: str = typer.Option('.duro/findings.discovery.json', '--findings', help='Discovery JSON input'),
+    out_dir: str = typer.Option('scenarios/generated', '--out-dir', help='Generated scenarios directory'),
+):
+    written = synthesize_scenarios(findings_path=findings, out_dir=out_dir)
+    ok(f"Generated {len(written)} scenario(s) into {out_dir}")
 
 
 @app.command()
