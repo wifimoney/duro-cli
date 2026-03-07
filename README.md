@@ -96,6 +96,7 @@ duro init
 duro doctor [--skip-rpc] [--json]
 duro run <scenario.yaml> [--llm-provider ... --llm-model ... --llm-fallback ...]
 duro rerun-check <scenario.yaml> --n 3 [--llm-provider ...]
+duro rerun-check <scenario.yaml> --n 5 --min-majority-ratio 0.80
 duro show <run_id>
 duro report export <run_id>
 duro verify <run_id>

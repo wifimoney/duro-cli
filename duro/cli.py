@@ -107,6 +107,7 @@ def rerun_check_cmd(
     llm_provider: str = typer.Option("mock", "--llm-provider", help="mock|openai|gemini|ollama|anthropic|openrouter|lmstudio"),
     llm_model: str = typer.Option("", "--llm-model", help="Provider model name"),
     llm_fallback: str = typer.Option("", "--llm-fallback", help="Fallback provider"),
+    min_majority_ratio: float = typer.Option(0.0, "--min-majority-ratio", help="Fail if majority ratio is below threshold (0..1)"),
     json_out: bool = typer.Option(False, "--json", help="JSON output"),
 ):
     try:
@@ -121,8 +122,17 @@ def rerun_check_cmd(
         err(str(e))
         raise typer.Exit(code=2)
 
+    if not (0.0 <= min_majority_ratio <= 1.0):
+        err("--min-majority-ratio must be within [0,1]")
+        raise typer.Exit(code=2)
+
+    failed_threshold = out["majority_ratio"] < min_majority_ratio
+
     if json_out:
-        print(json.dumps(out, indent=2))
+        payload = {**out, "min_majority_ratio": min_majority_ratio, "threshold_passed": not failed_threshold}
+        print(json.dumps(payload, indent=2))
+        if failed_threshold:
+            raise typer.Exit(code=1)
         return
 
     section("DURO RERUN CONSISTENCY")
@@ -131,6 +141,13 @@ def rerun_check_cmd(
     print(f"distribution: {out['distribution']}")
     print(f"majority: {out['majority_classification']} ({out['majority_ratio']:.2f})")
     print(f"avg_confidence: {out['confidence_mean']:.2f}")
+
+    if min_majority_ratio > 0:
+        print(f"threshold: min_majority_ratio={min_majority_ratio:.2f}")
+
+    if failed_threshold:
+        err(f"Consistency gate failed: majority_ratio {out['majority_ratio']:.2f} < {min_majority_ratio:.2f}")
+        raise typer.Exit(code=1)
 
 
 @app.command()
