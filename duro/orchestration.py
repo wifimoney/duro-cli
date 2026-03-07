@@ -8,7 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .discovery import discover_solidity_files
+import yaml
+
+from .core import run_scenario
+from .discovery import discover_solidity_files, synthesize_scenarios
 
 VECTOR_DIR = Path("duro/references/attack-vectors")
 AGENTS_DIR = Path("duro/references/agents")
@@ -173,3 +176,93 @@ def write_audit_json(payload: dict[str, Any], out_path: str | Path) -> Path:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(payload, indent=2))
     return out_path
+
+
+def fuse_discovery_and_repro(findings_payload: dict[str, Any], scenario_to_run: dict[str, str]) -> dict[str, Any]:
+    discovery_findings = findings_payload.get('findings', [])
+    fused = []
+
+    for f in discovery_findings:
+        fid = f.get('finding_id')
+        rid = scenario_to_run.get(fid)
+        repro = None
+        if rid:
+            rp = Path('runs') / rid / 'result.json'
+            if rp.exists():
+                repro = json.loads(rp.read_text())
+
+        fused.append({
+            'finding_id': fid,
+            'title': f.get('title'),
+            'hypothesis': f.get('hypothesis'),
+            'contract_file': f.get('contract_file'),
+            'discovery_confidence': f.get('confidence'),
+            'impact': f.get('impact'),
+            'repro_status': repro.get('classification') if repro else 'not_run',
+            'duro_confidence': repro.get('confidence') if repro else None,
+            'consistency_ratio': repro.get('consistency_ratio') if repro else None,
+            'run_id': rid,
+        })
+
+    return {
+        'version': 1,
+        'fused_findings': fused,
+    }
+
+
+def write_fused_report(fused_payload: dict[str, Any], out_md: str | Path) -> Path:
+    out_md = Path(out_md)
+    out_md.parent.mkdir(parents=True, exist_ok=True)
+
+    rows = fused_payload.get('fused_findings', [])
+    rows = sorted(rows, key=lambda r: (r.get('duro_confidence') or 0), reverse=True)
+
+    lines = ['# DURO Fused Audit Report', '', '## Findings']
+    for i, r in enumerate(rows, start=1):
+        lines.append(
+            f"{i}. {r.get('title')} | status={r.get('repro_status')} | duro_conf={r.get('duro_confidence')} | run={r.get('run_id')}"
+        )
+        lines.append(f"   - file: `{r.get('contract_file')}`")
+        lines.append(f"   - hypothesis: {r.get('hypothesis')}")
+
+    out_md.write_text('\n'.join(lines) + '\n')
+    return out_md
+
+
+def run_audit_from_discovery(
+    findings_path: str | Path = '.duro/findings.discovery.json',
+    out_prefix: str = '.duro/fused-audit',
+    llm_provider: str = 'mock',
+    llm_model: str = '',
+    llm_fallback: str = '',
+    max_runs: int = 20,
+) -> dict[str, Any]:
+    findings_path = Path(findings_path)
+    findings_payload = json.loads(findings_path.read_text())
+
+    generated = synthesize_scenarios(findings_path=findings_path, out_dir='scenarios/generated')
+
+    mapping: dict[str, str] = {}
+    for idx, sp in enumerate(generated, start=1):
+        if idx > max_runs:
+            break
+        sid = Path(sp).stem
+        y = yaml.safe_load(Path(sp).read_text())
+        fid = y.get('notes', {}).get('finding_id')
+        rid = run_scenario(sp, llm_provider=llm_provider, llm_model=llm_model, fallback_provider=llm_fallback)
+        if fid:
+            mapping[str(fid)] = rid
+        else:
+            mapping[sid] = rid
+
+    fused = fuse_discovery_and_repro(findings_payload, mapping)
+    fused_json = write_audit_json(fused, f"{out_prefix}.json")
+    fused_md = write_fused_report(fused, f"{out_prefix}.md")
+
+    return {
+        'generated_scenarios': generated,
+        'run_mapping': mapping,
+        'fused_json': str(fused_json),
+        'fused_md': str(fused_md),
+        'fused': fused,
+    }

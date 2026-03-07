@@ -18,7 +18,13 @@ from .core import (
 )
 from .ui import err, ok, section, show_banner, warn
 from .discovery import synthesize_scenarios, write_discovery_bundle
-from .orchestration import check_rulepack_version, run_parallel_vector_scan, write_audit_json, write_audit_report
+from .orchestration import (
+    check_rulepack_version,
+    run_audit_from_discovery,
+    run_parallel_vector_scan,
+    write_audit_json,
+    write_audit_report,
+)
 
 app = typer.Typer(help="DURO CLI — check if a smart-contract issue is actually exploitable")
 scenario_app = typer.Typer(help="Validate and inspect scenario files")
@@ -292,6 +298,32 @@ def audit_run_cmd(
 
     ok(f"Audit run complete: {report_path}")
     ok(f"Machine output: {json_path}")
+
+
+@app.command("audit")
+def audit_cmd(
+    from_findings: str = typer.Option('.duro/findings.discovery.json', '--from', help='Discovery findings JSON input'),
+    out_prefix: str = typer.Option('.duro/fused-audit', '--out-prefix', help='Output prefix for fused report'),
+    llm_provider: str = typer.Option('mock', '--llm-provider', help='mock|openai|gemini|ollama|anthropic|openrouter|lmstudio'),
+    llm_model: str = typer.Option('', '--llm-model', help='Provider model name'),
+    llm_fallback: str = typer.Option('', '--llm-fallback', help='Fallback provider'),
+    max_runs: int = typer.Option(20, '--max-runs', help='Cap number of generated scenarios to execute'),
+):
+    v = check_rulepack_version()
+    if v.get('warning'):
+        warn(v['warning'])
+
+    out = run_audit_from_discovery(
+        findings_path=from_findings,
+        out_prefix=out_prefix,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        llm_fallback=llm_fallback,
+        max_runs=max_runs,
+    )
+    ok(f"Fused audit JSON: {out['fused_json']}")
+    ok(f"Fused audit report: {out['fused_md']}")
+    print(f"scenarios_generated={len(out['generated_scenarios'])} runs_executed={len(out['run_mapping'])}")
 
 
 @app.command()

@@ -97,6 +97,7 @@ duro doctor [--skip-rpc] [--json]
 duro discover . --out .duro/findings.discovery.json
 duro synthesize --findings .duro/findings.discovery.json --out-dir scenarios/generated
 duro audit-run . --mode fast --confidence-threshold 0.60 --out-prefix .duro/audit
+duro audit --from .duro/findings.discovery.json --out-prefix .duro/fused-audit --llm-provider mock --max-runs 20
 duro run <scenario.yaml> [--llm-provider ... --llm-model ... --llm-fallback ...]
 duro rerun-check <scenario.yaml> --n 3 [--llm-provider ...]
 duro rerun-check <scenario.yaml> --n 5 --min-majority-ratio 0.80
